@@ -137,14 +137,26 @@ def find_channel_folder(window):
     :return:
         A folder path, or None if not found
     """
+    basename = os.path.basename
 
-    for folder in window.folders():
+    def is_valid_folder(folder):
         for file_name in ['channel.json', 'repository.json', 'tests/test.py']:
             if not os.path.exists(os.path.join(folder, file_name)):
                 break
         # This is only run if all files were found
         else:
+            return True
+
+        return False
+
+    for folder in window.folders():
+        if is_valid_folder(folder):
             return folder
+
+        for root, dirs, files in os.walk(folder):
+            if basename(root) == "package_control_channel":
+                if is_valid_folder(root):
+                    return root
 
     return None
 
