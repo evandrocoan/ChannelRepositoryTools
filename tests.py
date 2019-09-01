@@ -6,9 +6,40 @@ import os
 import sys
 import threading
 import time
+import functools
 
 import sublime
 import sublime_plugin
+
+class State(object):
+    is_running = False
+
+
+def show_message(message):
+    print( message )
+    sublime.status_message( message )
+
+
+def run_delayed_command(self, target):
+    if State.is_running:
+        show_message( 'Already running some command!' )
+
+    else:
+        State.is_running = True
+        show_message( 'Running command... %s' % type( self ) )
+        threading.Thread( target=target ).start()
+
+
+def safe_run(wrapped_function):
+    @functools.wraps( wrapped_function )
+    def new_function(*args, **kwargs):
+        try:
+            wrapped_function( *args, **kwargs )
+
+        finally:
+            State.is_running = False
+
+    return new_function
 
 
 class StringQueue():
@@ -41,42 +72,54 @@ class ChannelRepositoryToolsInsertCommand(sublime_plugin.TextCommand):
 class TestDefaultChannelCommand(sublime_plugin.WindowCommand):
 
     def run(self, include_repositories=False):
-        tests_module, panel, output_queue, on_done = create_resources(self.window)
-        if tests_module is None:
-            return
+        @safe_run
+        def delayed():
+            tests_module, panel, output_queue, on_done = create_resources(self.window)
+            if tests_module is None:
+                return
 
-        self.window.run_command('show_panel', {'panel': 'output.channel_repository_tools'})
-        threading.Thread(target=display_results, args=('Default Channel', panel, output_queue)).start()
-        threading.Thread(target=run_standard_tests, args=(tests_module, include_repositories, output_queue, on_done)).start()
+            self.window.run_command('show_panel', {'panel': 'output.channel_repository_tools'})
+            threading.Thread(target=display_results, args=('Default Channel', panel, output_queue)).start()
+            threading.Thread(target=run_standard_tests, args=(tests_module, include_repositories, output_queue, on_done)).start()
+
+        run_delayed_command( self, delayed )
 
 
 class TestRemoteRepositoryCommand(sublime_plugin.WindowCommand):
 
     def run(self):
-        tests_module, panel, output_queue, on_done = create_resources(self.window)
-        if tests_module is None:
-            return
+        @safe_run
+        def delayed():
+            tests_module, panel, output_queue, on_done = create_resources(self.window)
+            if tests_module is None:
+                return
 
-        def handle_input(url):
-            self.window.run_command('show_panel', {'panel': 'output.channel_repository_tools'})
-            threading.Thread(target=display_results, args=('Remote Repository', panel, output_queue)).start()
-            threading.Thread(target=run_url_tests, args=(tests_module, url, output_queue, on_done)).start()
+            def handle_input(url):
+                self.window.run_command('show_panel', {'panel': 'output.channel_repository_tools'})
+                threading.Thread(target=display_results, args=('Remote Repository', panel, output_queue)).start()
+                threading.Thread(target=run_url_tests, args=(tests_module, url, output_queue, on_done)).start()
 
-        self.window.show_input_panel('Repository URL', 'https://example.com/packages.json', handle_input, None, None)
+            self.window.show_input_panel('Repository URL', 'https://example.com/packages.json', handle_input, None, None)
+
+        run_delayed_command( self, delayed )
 
 
 class TestLocalRepositoryCommand(sublime_plugin.TextCommand):
 
     def run(self, edit):
-        tests_module, panel, output_queue, on_done = create_resources(self.view.window())
-        if tests_module is None:
-            return
+        @safe_run
+        def delayed():
+            tests_module, panel, output_queue, on_done = create_resources(self.view.window())
+            if tests_module is None:
+                return
 
-        path = self.view.file_name()
+            path = self.view.file_name()
 
-        self.view.window().run_command('show_panel', {'panel': 'output.channel_repository_tools'})
-        threading.Thread(target=display_results, args=('Local Repository', panel, output_queue)).start()
-        threading.Thread(target=run_local_tests, args=(tests_module, path, output_queue, on_done)).start()
+            self.view.window().run_command('show_panel', {'panel': 'output.channel_repository_tools'})
+            threading.Thread(target=display_results, args=('Local Repository', panel, output_queue)).start()
+            threading.Thread(target=run_local_tests, args=(tests_module, path, output_queue, on_done)).start()
+
+        run_delayed_command( self, delayed )
 
 
 def create_resources(window):
