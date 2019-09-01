@@ -36,6 +36,10 @@ def safe_run(wrapped_function):
         try:
             wrapped_function( *args, **kwargs )
 
+        except Exception as error:
+            show_message( "Command failed with '%s'!" % error )
+            raise
+
         finally:
             State.is_running = False
 
