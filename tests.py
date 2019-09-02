@@ -207,7 +207,7 @@ def find_channel_folder(window):
             for directory in dirs:
 
                 if directory == "package_control_channel":
-                    channel_repository_tools_path = join( root, directory )
+                    channel_repository_tools_path = join(root, directory)
 
                     if is_valid_folder(channel_repository_tools_path):
                         return channel_repository_tools_path
