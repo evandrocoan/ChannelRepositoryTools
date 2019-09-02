@@ -32,7 +32,6 @@ def safe_run(wrapped_function):
                 lock.set()
 
                 def super_wrapped(*args, **kwargs):
-
                     try:
                         wrapped_function(*args, **kwargs)
 
