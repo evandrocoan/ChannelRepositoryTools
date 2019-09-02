@@ -81,11 +81,12 @@ class TestDefaultChannelCommand(sublime_plugin.WindowCommand):
 
     @safe_run
     def run(self, include_repositories=False):
-        tests_module, panel, output_queue, on_done = create_resources(self.window)
+        panel_name = self.window.active_view().settings().get('channel_repository_tools_output_panel', 'channel_repository_tools')
+        tests_module, panel, output_queue, on_done = create_resources(self.window, panel_name)
         if tests_module is None:
             return
 
-        self.window.run_command('show_panel', {'panel': 'output.exec'})
+        self.window.run_command('show_panel', {'panel': 'output.%s' % panel_name})
         threading.Thread(target=display_results, args=('Default Channel', panel, output_queue)).start()
         threading.Thread(target=run_standard_tests, args=(tests_module, include_repositories, output_queue, on_done)).start()
 
@@ -94,12 +95,13 @@ class TestRemoteRepositoryCommand(sublime_plugin.WindowCommand):
 
     @safe_run
     def run(self):
-        tests_module, panel, output_queue, on_done = create_resources(self.window)
+        panel_name = self.window.active_view().settings().get('channel_repository_tools_output_panel', 'channel_repository_tools')
+        tests_module, panel, output_queue, on_done = create_resources(self.window, panel_name)
         if tests_module is None:
             return
 
         def handle_input(url):
-            self.window.run_command('show_panel', {'panel': 'output.exec'})
+            self.window.run_command('show_panel', {'panel': 'output.%s' % panel_name})
             threading.Thread(target=display_results, args=('Remote Repository', panel, output_queue)).start()
             threading.Thread(target=run_url_tests, args=(tests_module, url, output_queue, on_done)).start()
 
@@ -110,18 +112,19 @@ class TestLocalRepositoryCommand(sublime_plugin.TextCommand):
 
     @safe_run
     def run(self, edit):
-        tests_module, panel, output_queue, on_done = create_resources(self.view.window())
+        panel_name = self.window.active_view().settings().get('channel_repository_tools_output_panel', 'channel_repository_tools')
+        tests_module, panel, output_queue, on_done = create_resources(self.view.window(), panel_name)
         if tests_module is None:
             return
 
         path = self.view.file_name()
 
-        self.view.window().run_command('show_panel', {'panel': 'output.exec'})
+        self.view.window().run_command('show_panel', {'panel': 'output.%s' % panel_name})
         threading.Thread(target=display_results, args=('Local Repository', panel, output_queue)).start()
         threading.Thread(target=run_local_tests, args=(tests_module, path, output_queue, on_done)).start()
 
 
-def create_resources(window):
+def create_resources(window, panel_name):
     """
     Creates resources necessary to run the tests for a channel or repository
 
@@ -148,7 +151,7 @@ def create_resources(window):
         return (None, None, None, None)
 
     output_queue = StringQueue()
-    panel = window.get_output_panel('exec')
+    panel = window.get_output_panel(panel_name)
     panel.settings().set('word_wrap', True)
 
     if sys.version_info >= (3,):
