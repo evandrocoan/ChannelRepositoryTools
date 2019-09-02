@@ -13,40 +13,44 @@ import sublime_plugin
 
 from multiprocessing import Event
 
+lock = Event()
+
 
 def show_message(message):
     print(message)
     sublime.status_message(message)
 
 
-lock = Event()
+def safe_run(event_lock):
+    def wrapper_factory(wrapped_function):
 
-def safe_run(wrapped_function):
-    @functools.wraps(wrapped_function)
-    def new_function(*args, **kwargs):
-        try:
-            if lock.is_set():
-                show_message('Already running some command!')
+        @functools.wraps(wrapped_function)
+        def new_function(*args, **kwargs):
+            try:
+                if event_lock.is_set():
+                    show_message('Already running some command!')
 
-            else:
-                lock.set()
+                else:
+                    event_lock.set()
 
-                def super_wrapped(*args, **kwargs):
-                    try:
-                        wrapped_function(*args, **kwargs)
+                    def wrapped_thread(*args, **kwargs):
+                        try:
+                            wrapped_function(*args, **kwargs)
 
-                    finally:
-                        lock.clear()
+                        finally:
+                            event_lock.clear()
 
-                show_message('Running command... %s' % type(args[0]))
-                threading.Thread(target=super_wrapped, args=args, kwargs=kwargs).start()
+                    show_message('Running command... %s' % type(args[0]))
+                    threading.Thread(target=wrapped_thread, args=args, kwargs=kwargs).start()
 
-        except Exception as error:
-            lock.clear()
-            show_message("Command failed with '%s'!" % error)
-            raise
+            except Exception as error:
+                event_lock.clear()
+                show_message("Command failed with '%s'!" % error)
+                raise
 
-    return new_function
+        return new_function
+
+    return wrapper_factory
 
 
 class StringQueue():
@@ -78,7 +82,7 @@ class ChannelRepositoryToolsInsertCommand(sublime_plugin.TextCommand):
 
 class TestDefaultChannelCommand(sublime_plugin.WindowCommand):
 
-    @safe_run
+    @safe_run(lock)
     def run(self, include_repositories=False):
         panel_name = self.window.active_view().settings().get('channel_repository_tools_output_panel', 'channel_repository_tools')
         tests_module, panel, output_queue, on_done = create_resources(self.window, panel_name)
@@ -92,7 +96,7 @@ class TestDefaultChannelCommand(sublime_plugin.WindowCommand):
 
 class TestRemoteRepositoryCommand(sublime_plugin.WindowCommand):
 
-    @safe_run
+    @safe_run(lock)
     def run(self):
         panel_name = self.window.active_view().settings().get('channel_repository_tools_output_panel', 'channel_repository_tools')
         tests_module, panel, output_queue, on_done = create_resources(self.window, panel_name)
@@ -109,7 +113,7 @@ class TestRemoteRepositoryCommand(sublime_plugin.WindowCommand):
 
 class TestLocalRepositoryCommand(sublime_plugin.TextCommand):
 
-    @safe_run
+    @safe_run(lock)
     def run(self, edit):
         panel_name = self.window.active_view().settings().get('channel_repository_tools_output_panel', 'channel_repository_tools')
         tests_module, panel, output_queue, on_done = create_resources(self.view.window(), panel_name)
