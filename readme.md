@@ -87,7 +87,3 @@ then be made available to users.
 Whenever possible, please take the time to move your package into the default
 repository so that the crawler can more efficiently check packages for updates.
 
-
-## License
-
-See the `license` file
