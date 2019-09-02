@@ -11,37 +11,41 @@ import functools
 import sublime
 import sublime_plugin
 
-class State(object):
-    is_running = False
+from multiprocessing import Event
 
 
 def show_message(message):
-    print( message )
-    sublime.status_message( message )
+    print(message)
+    sublime.status_message(message)
 
 
-def run_delayed_command(self, target):
-    if State.is_running:
-        show_message( 'Already running some command!' )
-
-    else:
-        State.is_running = True
-        show_message( 'Running command... %s' % type( self ) )
-        threading.Thread( target=target ).start()
-
+lock = Event()
 
 def safe_run(wrapped_function):
-    @functools.wraps( wrapped_function )
+    @functools.wraps(wrapped_function)
     def new_function(*args, **kwargs):
         try:
-            wrapped_function( *args, **kwargs )
+            if lock.is_set():
+                show_message('Already running some command!')
+
+            else:
+                lock.set()
+
+                def super_wrapped(*args, **kwargs):
+
+                    try:
+                        wrapped_function(*args, **kwargs)
+
+                    finally:
+                        lock.clear()
+
+                show_message('Running command... %s' % type(args[0]))
+                threading.Thread(target=super_wrapped, args=args, kwargs=kwargs).start()
 
         except Exception as error:
-            show_message( "Command failed with '%s'!" % error )
+            lock.clear()
+            show_message("Command failed with '%s'!" % error)
             raise
-
-        finally:
-            State.is_running = False
 
     return new_function
 
@@ -75,55 +79,46 @@ class ChannelRepositoryToolsInsertCommand(sublime_plugin.TextCommand):
 
 class TestDefaultChannelCommand(sublime_plugin.WindowCommand):
 
+    @safe_run
     def run(self, include_repositories=False):
-        @safe_run
-        def delayed():
-            tests_module, panel, output_queue, on_done = create_resources(self.window)
-            if tests_module is None:
-                return
+        tests_module, panel, output_queue, on_done = create_resources(self.window)
+        if tests_module is None:
+            return
 
-            self.window.run_command('show_panel', {'panel': 'output.exec'})
-            threading.Thread(target=display_results, args=('Default Channel', panel, output_queue)).start()
-            threading.Thread(target=run_standard_tests, args=(tests_module, include_repositories, output_queue, on_done)).start()
-
-        run_delayed_command( self, delayed )
+        self.window.run_command('show_panel', {'panel': 'output.exec'})
+        threading.Thread(target=display_results, args=('Default Channel', panel, output_queue)).start()
+        threading.Thread(target=run_standard_tests, args=(tests_module, include_repositories, output_queue, on_done)).start()
 
 
 class TestRemoteRepositoryCommand(sublime_plugin.WindowCommand):
 
+    @safe_run
     def run(self):
-        @safe_run
-        def delayed():
-            tests_module, panel, output_queue, on_done = create_resources(self.window)
-            if tests_module is None:
-                return
+        tests_module, panel, output_queue, on_done = create_resources(self.window)
+        if tests_module is None:
+            return
 
-            def handle_input(url):
-                self.window.run_command('show_panel', {'panel': 'output.exec'})
-                threading.Thread(target=display_results, args=('Remote Repository', panel, output_queue)).start()
-                threading.Thread(target=run_url_tests, args=(tests_module, url, output_queue, on_done)).start()
+        def handle_input(url):
+            self.window.run_command('show_panel', {'panel': 'output.exec'})
+            threading.Thread(target=display_results, args=('Remote Repository', panel, output_queue)).start()
+            threading.Thread(target=run_url_tests, args=(tests_module, url, output_queue, on_done)).start()
 
-            self.window.show_input_panel('Repository URL', 'https://example.com/packages.json', handle_input, None, None)
-
-        run_delayed_command( self, delayed )
+        self.window.show_input_panel('Repository URL', 'https://example.com/packages.json', handle_input, None, None)
 
 
 class TestLocalRepositoryCommand(sublime_plugin.TextCommand):
 
+    @safe_run
     def run(self, edit):
-        @safe_run
-        def delayed():
-            tests_module, panel, output_queue, on_done = create_resources(self.view.window())
-            if tests_module is None:
-                return
+        tests_module, panel, output_queue, on_done = create_resources(self.view.window())
+        if tests_module is None:
+            return
 
-            path = self.view.file_name()
+        path = self.view.file_name()
 
-            self.view.window().run_command('show_panel', {'panel': 'output.exec'})
-            threading.Thread(target=display_results, args=('Local Repository', panel, output_queue)).start()
-            threading.Thread(target=run_local_tests, args=(tests_module, path, output_queue, on_done)).start()
-
-        run_delayed_command( self, delayed )
+        self.view.window().run_command('show_panel', {'panel': 'output.exec'})
+        threading.Thread(target=display_results, args=('Local Repository', panel, output_queue)).start()
+        threading.Thread(target=run_local_tests, args=(tests_module, path, output_queue, on_done)).start()
 
 
 def create_resources(window):
