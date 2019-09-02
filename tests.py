@@ -187,6 +187,7 @@ def find_channel_folder(window):
     """
     join = os.path.join
     exists = os.path.exists
+    basename = os.path.basename
 
     def is_valid_folder(folder):
         for file_name in ['channel.json', 'repository.json', 'tests/test.py']:
@@ -203,14 +204,12 @@ def find_channel_folder(window):
             return folder
 
         for root, dirs, files in os.walk(folder):
+            directory = basename( root )
 
-            for directory in dirs:
+            if directory == "package_control_channel":
 
-                if directory == "package_control_channel":
-                    channel_repository_tools_path = join(root, directory)
-
-                    if is_valid_folder(channel_repository_tools_path):
-                        return channel_repository_tools_path
+                if is_valid_folder(root):
+                    return root
 
     return None
 
