@@ -1,4 +1,9 @@
 {
+	// Controls which name will be used for the output panel when
+	// showing the tests results
     "channel_repository_tools_panel_name": "channel_repository_tools",
+
+    // Enable recursive search for the `channel_repository_tools`
+    // directory in the actual Subliem Text open folders
     "channel_repository_tools_recursively_search": false,
 }
