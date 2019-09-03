@@ -80,12 +80,19 @@ class ChannelRepositoryToolsInsertCommand(sublime_plugin.TextCommand):
         self.view.show(self.view.size(), True)
 
 
+def get_settings(window):
+    settings = window.active_view().settings()
+    recursively_search = settings.get('channel_repository_tools_recursively_search', False)
+    panel_name = settings.get('channel_repository_tools_panel_name', 'channel_repository_tools')
+    return panel_name, recursively_search
+
+
 class TestDefaultChannelCommand(sublime_plugin.WindowCommand):
 
     @safe_run(lock)
     def run(self, include_repositories=False):
-        panel_name = self.window.active_view().settings().get('channel_repository_tools_output_panel', 'channel_repository_tools')
-        tests_module, panel, output_queue, on_done = create_resources(self.window, panel_name)
+        panel_name, recursively_search = get_settings(self.window)
+        tests_module, panel, output_queue, on_done = create_resources(self.window, panel_name, recursively_search)
         if tests_module is None:
             return
 
@@ -98,8 +105,8 @@ class TestRemoteRepositoryCommand(sublime_plugin.WindowCommand):
 
     @safe_run(lock)
     def run(self):
-        panel_name = self.window.active_view().settings().get('channel_repository_tools_output_panel', 'channel_repository_tools')
-        tests_module, panel, output_queue, on_done = create_resources(self.window, panel_name)
+        panel_name, recursively_search = get_settings(self.window)
+        tests_module, panel, output_queue, on_done = create_resources(self.window, panel_name, recursively_search)
         if tests_module is None:
             return
 
@@ -115,8 +122,8 @@ class TestLocalRepositoryCommand(sublime_plugin.TextCommand):
 
     @safe_run(lock)
     def run(self, edit):
-        panel_name = self.window.active_view().settings().get('channel_repository_tools_output_panel', 'channel_repository_tools')
-        tests_module, panel, output_queue, on_done = create_resources(self.view.window(), panel_name)
+        panel_name, recursively_search = get_settings(self.window)
+        tests_module, panel, output_queue, on_done = create_resources(self.view.window(), panel_name, recursively_search)
         if tests_module is None:
             return
 
@@ -127,7 +134,7 @@ class TestLocalRepositoryCommand(sublime_plugin.TextCommand):
         threading.Thread(target=run_local_tests, args=(tests_module, path, output_queue, on_done)).start()
 
 
-def create_resources(window, panel_name):
+def create_resources(window, panel_name, recursively_search):
     """
     Creates resources necessary to run the tests for a channel or repository
 
@@ -144,7 +151,7 @@ def create_resources(window, panel_name):
         - on_done_callback: a callback to cleanup resources when complete
     """
 
-    folder = find_channel_folder(window)
+    folder = find_channel_folder(window, recursively_search)
 
     if folder is None:
         sublime.error_message(u'ChannelRepositoryTools\n\nPlease open the ' +
@@ -175,7 +182,7 @@ def create_resources(window, panel_name):
     return (tests, panel, output_queue, on_done)
 
 
-def find_channel_folder(window):
+def find_channel_folder(window, recursively_search):
     """
     Looks in the window to find the package_control_channel folder.
 
@@ -188,6 +195,7 @@ def find_channel_folder(window):
     join = os.path.join
     exists = os.path.exists
     basename = os.path.basename
+    disable_recursive_search = not recursively_search
 
     def is_valid_folder(folder):
         for file_name in ['channel.json', 'repository.json', 'tests/test.py']:
@@ -206,10 +214,11 @@ def find_channel_folder(window):
         for root, dirs, files in os.walk(folder):
             directory = basename( root )
 
-            if directory == "package_control_channel":
+            if directory == "package_control_channel" and is_valid_folder(root):
+                return root
 
-                if is_valid_folder(root):
-                    return root
+            if disable_recursive_search:
+                break
 
     return None
 

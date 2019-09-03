@@ -1,3 +1,4 @@
 {
-    "channel_repository_tools_output_panel": "channel_repository_tools",
+    "channel_repository_tools_panel_name": "channel_repository_tools",
+    "channel_repository_tools_recursively_search": false,
 }
