@@ -11,9 +11,7 @@ import functools
 import sublime
 import sublime_plugin
 
-from multiprocessing import Event
-
-lock = Event()
+lock = threading.Event()
 
 
 def show_message(message):
