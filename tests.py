@@ -33,7 +33,7 @@ def safe_run(event_lock):
 
                     def wrapped_thread(*args, **kwargs):
                         try:
-                            wrapped_function(*args, **kwargs)
+                            return wrapped_function(*args, **kwargs)
 
                         finally:
                             event_lock.clear()
